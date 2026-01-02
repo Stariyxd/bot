@@ -4,13 +4,11 @@
 import telebot
 from telebot import types
 import datetime
+import os
 
-# Токен от @BotFather
-BOT_TOKEN = "8335314646:AAHQa_vdn8x7sjuL5VAM6wM5HbOZuMsvifE"
-
-# ID чата/группы куда пересылать заявки
-# Узнать свой ID: напиши боту @userinfobot
-ADMIN_CHAT_ID = 3528774795/8  # Замени на свой ID
+# Токен из переменной окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -160,7 +158,6 @@ def handle_message(message):
     state = user_states.get(message.chat.id)
     
     if state is None:
-        # Если пользователь просто написал что-то
         bot.send_message(message.chat.id, "Выбери пункт меню 👇")
         return
     
@@ -197,16 +194,21 @@ def handle_message(message):
 🕐 <b>Время:</b> {now}
 
 ━━━━━━━━━━━━━━━━━━━━━
-"""
+
+💬 Чтобы ответить:
+<code>/reply {user.id} текст ответа</code>
+
+━━━━━━━━━━━━━━━━━━━━━"""
     
     # Отправляем админу
-    bot.send_message(ADMIN_CHAT_ID, admin_text, parse_mode='HTML')
-    
-    # Пересылаем оригинальное сообщение
-    bot.forward_message(ADMIN_CHAT_ID, message.chat.id, message.message_id)
+    try:
+        bot.send_message(ADMIN_CHAT_ID, admin_text, parse_mode='HTML')
+        bot.forward_message(ADMIN_CHAT_ID, message.chat.id, message.message_id)
+    except Exception as e:
+        print(f"Ошибка отправки админу: {e}")
     
     # Подтверждение пользователю
-    confirm_text = f"""✅ <b>Спасибо!</b>
+    confirm_text = """✅ <b>Спасибо!</b>
 
 Твоя заявка принята и передана в редакцию.
 
@@ -217,10 +219,8 @@ def handle_message(message):
 📺 Канал: @shumaher_news
 💬 Чат: @shumaher_news_chat"""
     
-    # Сбрасываем состояние
     user_states[message.chat.id] = None
     
-    # Возвращаем главное меню
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("📰 Подать новость"))
     markup.add(types.KeyboardButton("💼 Откликнуться на вакансию"))
@@ -229,15 +229,13 @@ def handle_message(message):
     bot.send_message(message.chat.id, confirm_text, parse_mode='HTML', reply_markup=markup)
 
 # ================================
-# КОМАНДА ДЛЯ ОТВЕТА (для админа)
+# КОМАНДА /reply (для админа)
 # ================================
 @bot.message_handler(commands=['reply'])
 def reply_to_user(message):
-    # Только для админа
     if message.chat.id != ADMIN_CHAT_ID:
         return
     
-    # Формат: /reply USER_ID текст ответа
     try:
         parts = message.text.split(' ', 2)
         user_id = int(parts[1])
@@ -249,15 +247,17 @@ def reply_to_user(message):
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-📺 Канал: @shumaher_news"""
+📺 Канал: @shumaher_news
+💬 Чат: @shumaher_news_chat"""
         
         bot.send_message(user_id, text, parse_mode='HTML')
         bot.send_message(ADMIN_CHAT_ID, f"✅ Ответ отправлен пользователю {user_id}")
-    except:
-        bot.send_message(ADMIN_CHAT_ID, "❌ Ошибка. Формат: /reply USER_ID текст")
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT_ID, f"❌ Ошибка: {e}\n\nФормат: /reply USER_ID текст")
 
 # ================================
 # ЗАПУСК БОТА
 # ================================
-print("Бот запущен...")
-bot.infinity_polling()
+if __name__ == "__main__":
+    print("🤖 SHUMAHER NEWS Bot запущен...")
+    bot.infinity_polling(timeout=60, long_polling_timeout=60)
