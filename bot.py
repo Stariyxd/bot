@@ -1,54 +1,90 @@
 # bot.py
-# SHUMAHER NEWS Bot
-
 import telebot
 from telebot import types
 import datetime
 import os
 
-# Токен из переменной окружения
+# Токен из Secrets
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Хранение состояний пользователей
+# Хранение состояний
 user_states = {}
 
 # ================================
-# КОМАНДА /start
+# /start
 # ================================
 @bot.message_handler(commands=['start'])
 def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn1 = types.KeyboardButton("📰 Подать новость")
-    btn2 = types.KeyboardButton("💼 Откликнуться на вакансию")
-    btn3 = types.KeyboardButton("❓ Задать вопрос")
-    markup.add(btn1)
-    markup.add(btn2)
-    markup.add(btn3)
+    markup.add(types.KeyboardButton("📰 Подать новость"))
+    markup.add(types.KeyboardButton("💼 Откликнуться на вакансию"))
+    markup.add(types.KeyboardButton("❓ Задать вопрос"))
     
     text = """👋 <b>Привет!</b>
 
 Ты написал в редакцию <b>SHUMAHER NEWS</b> — 
 первого новостного канала о CPM.
 
-Выбери, что тебе нужно:
-
-📰 <b>Подать новость</b> — расскажи о событии в игре
-💼 <b>Вакансии</b> — откликнись на позицию в команде
+📰 <b>Подать новость</b> — расскажи о событии
+💼 <b>Вакансии</b> — откликнись в команду
 ❓ <b>Вопрос</b> — задай любой вопрос
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-📺 Канал: @shumaher_news
-💬 Чат: @shumaher_news_chat
-💼 Вакансии: @shumaher_news_job"""
+📺 @shumaher_news
+💬 @shumaher_news_chat"""
     
     bot.send_message(message.chat.id, text, parse_mode='HTML', reply_markup=markup)
 
 # ================================
-# КНОПКА "Подать новость"
+# /reply для ответа (ИСПРАВЛЕННЫЙ)
+# ================================
+@bot.message_handler(commands=['reply'])
+def reply_to_user(message):
+    # Проверяем что это админ
+    if message.chat.id != ADMIN_CHAT_ID:
+        bot.send_message(message.chat.id, "⛔ У тебя нет доступа")
+        return
+    
+    try:
+        # Разбираем: /reply 123456789 текст
+        text = message.text
+        text = text.replace('/reply ', '', 1)
+        parts = text.split(' ', 1)
+        
+        if len(parts) < 2:
+            bot.send_message(ADMIN_CHAT_ID, 
+                "❌ Неверный формат!\n\n"
+                "Правильно:\n"
+                "<code>/reply 123456789 Текст ответа</code>", 
+                parse_mode='HTML')
+            return
+        
+        user_id = int(parts[0])
+        reply_text = parts[1]
+        
+        answer = f"""📬 <b>Ответ от SHUMAHER NEWS:</b>
+
+{reply_text}
+
+━━━━━━━━━━━━━━━━━━━━━
+
+📺 @shumaher_news
+💬 @shumaher_news_chat"""
+        
+        bot.send_message(user_id, answer, parse_mode='HTML')
+        bot.send_message(ADMIN_CHAT_ID, f"✅ Ответ отправлен!")
+        
+    except ValueError:
+        bot.send_message(ADMIN_CHAT_ID, "❌ ID должен быть числом!")
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT_ID, f"❌ Ошибка: {e}")
+
+# ================================
+# Подать новость
 # ================================
 @bot.message_handler(func=lambda m: m.text == "📰 Подать новость")
 def submit_news(message):
@@ -59,16 +95,12 @@ def submit_news(message):
 Напиши <b>одним сообщением</b>:
 
 1️⃣ Что случилось?
-2️⃣ Сервер (1, 2, 3, Европа...)
-3️⃣ Локация (где именно)
-4️⃣ Когда это было?
-5️⃣ Твой ник (для упоминания в эфире)
+2️⃣ Сервер (1, 2, 3...)
+3️⃣ Локация
+4️⃣ Когда?
+5️⃣ Твой ник
 
-📎 Прикрепи видео или скриншот!
-
-━━━━━━━━━━━━━━━━━━━━━
-
-<i>Отправь всё следующим сообщением</i> 👇"""
+📎 Прикрепи видео/скриншот!"""
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("◀️ Назад"))
@@ -76,43 +108,34 @@ def submit_news(message):
     bot.send_message(message.chat.id, text, parse_mode='HTML', reply_markup=markup)
 
 # ================================
-# КНОПКА "Откликнуться на вакансию"
+# Вакансии
 # ================================
 @bot.message_handler(func=lambda m: m.text == "💼 Откликнуться на вакансию")
 def apply_job(message):
     user_states[message.chat.id] = "waiting_job"
     
-    text = """💼 <b>ОТКЛИКНУТЬСЯ НА ВАКАНСИЮ</b>
+    text = """💼 <b>ВАКАНСИИ</b>
 
-Мы ищем:
-🎤 Ведущих
-📹 Корреспондентов
-🎮 Операторов
-📝 Сценариста
-🎨 Дизайнера
-📱 SMM-менеджера
-📩 Модератора
+🎤 Ведущие
+📹 Корреспонденты
+🎮 Операторы
+📝 Сценарист
+🎨 Дизайнер
+📱 SMM
 
 📋 Подробности: @shumaher_news_job
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-Чтобы откликнуться, напиши:
+<b>Напиши:</b>
+1. Вакансия
+2. Ник в игре
+3. Возраст
+4. Есть микрофон?
+5. Часов в неделю
+6. Почему хочешь к нам
 
-1️⃣ На какую вакансию претендуешь
-2️⃣ Твой ник в игре
-3️⃣ Возраст
-4️⃣ Есть ли микрофон
-5️⃣ Сколько часов в неделю готов уделять
-6️⃣ Почему хочешь к нам
-7️⃣ Опыт (если есть)
-
-🎤 <b>Для ведущих/корреспондентов:</b>
-Запиши голосовое 30 сек — прочитай любой текст!
-
-━━━━━━━━━━━━━━━━━━━━━
-
-<i>Отправь всё следующим сообщением</i> 👇"""
+🎤 Ведущим — запиши голосовое 30 сек!"""
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("◀️ Назад"))
@@ -120,22 +143,17 @@ def apply_job(message):
     bot.send_message(message.chat.id, text, parse_mode='HTML', reply_markup=markup)
 
 # ================================
-# КНОПКА "Задать вопрос"
+# Вопрос
 # ================================
 @bot.message_handler(func=lambda m: m.text == "❓ Задать вопрос")
 def ask_question(message):
     user_states[message.chat.id] = "waiting_question"
     
-    text = """❓ <b>ЗАДАТЬ ВОПРОС</b>
+    text = """❓ <b>ВОПРОС</b>
 
-Напиши свой вопрос, и мы ответим 
-в течение 24 часов.
+Напиши вопрос — ответим в течение 24 часов.
 
-Если срочно — пиши в чат @shumaher_news_chat
-
-━━━━━━━━━━━━━━━━━━━━━
-
-<i>Отправь вопрос следующим сообщением</i> 👇"""
+Срочно? Пиши в @shumaher_news_chat"""
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("◀️ Назад"))
@@ -143,7 +161,7 @@ def ask_question(message):
     bot.send_message(message.chat.id, text, parse_mode='HTML', reply_markup=markup)
 
 # ================================
-# КНОПКА "Назад"
+# Назад
 # ================================
 @bot.message_handler(func=lambda m: m.text == "◀️ Назад")
 def go_back(message):
@@ -151,7 +169,7 @@ def go_back(message):
     start(message)
 
 # ================================
-# ОБРАБОТКА СООБЩЕНИЙ
+# Обработка сообщений
 # ================================
 @bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'voice', 'video_note'])
 def handle_message(message):
@@ -161,103 +179,59 @@ def handle_message(message):
         bot.send_message(message.chat.id, "Выбери пункт меню 👇")
         return
     
-    # Определяем тип заявки
     if state == "waiting_news":
         label = "📰 НОВОСТЬ"
-        emoji = "📰"
     elif state == "waiting_job":
         label = "💼 ВАКАНСИЯ"
-        emoji = "💼"
     elif state == "waiting_question":
         label = "❓ ВОПРОС"
-        emoji = "❓"
     else:
         return
     
-    # Информация о пользователе
     user = message.from_user
     username = f"@{user.username}" if user.username else "нет username"
-    name = user.first_name
-    if user.last_name:
-        name += f" {user.last_name}"
-    
-    # Формируем сообщение для админа
+    name = user.first_name or "Без имени"
     now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
     
     admin_text = f"""━━━━━━━━━━━━━━━━━━━━━
-{emoji} <b>{label}</b>
+<b>{label}</b>
 ━━━━━━━━━━━━━━━━━━━━━
 
-👤 <b>От:</b> {name}
+👤 <b>Имя:</b> {name}
 📱 <b>Username:</b> {username}
 🆔 <b>ID:</b> <code>{user.id}</code>
 🕐 <b>Время:</b> {now}
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-💬 Чтобы ответить:
-<code>/reply {user.id} текст ответа</code>
+<b>Чтобы ответить, скопируй:</b>
+<code>/reply {user.id} Твой ответ здесь</code>
 
 ━━━━━━━━━━━━━━━━━━━━━"""
     
-    # Отправляем админу
     try:
         bot.send_message(ADMIN_CHAT_ID, admin_text, parse_mode='HTML')
         bot.forward_message(ADMIN_CHAT_ID, message.chat.id, message.message_id)
     except Exception as e:
         print(f"Ошибка отправки админу: {e}")
     
-    # Подтверждение пользователю
-    confirm_text = """✅ <b>Спасибо!</b>
-
-Твоя заявка принята и передана в редакцию.
-
-Мы ответим в течение 24 часов.
-
-━━━━━━━━━━━━━━━━━━━━━
-
-📺 Канал: @shumaher_news
-💬 Чат: @shumaher_news_chat"""
-    
+    # Сбрасываем состояние
     user_states[message.chat.id] = None
     
+    # Возвращаем меню
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("📰 Подать новость"))
     markup.add(types.KeyboardButton("💼 Откликнуться на вакансию"))
     markup.add(types.KeyboardButton("❓ Задать вопрос"))
     
-    bot.send_message(message.chat.id, confirm_text, parse_mode='HTML', reply_markup=markup)
+    bot.send_message(message.chat.id, "✅ Принято! Ответим в течение 24 часов.", reply_markup=markup)
 
 # ================================
-# КОМАНДА /reply (для админа)
+# Запуск
 # ================================
-@bot.message_handler(commands=['reply'])
-def reply_to_user(message):
-    if message.chat.id != ADMIN_CHAT_ID:
-        return
-    
-    try:
-        parts = message.text.split(' ', 2)
-        user_id = int(parts[1])
-        reply_text = parts[2]
-        
-        text = f"""📬 <b>Ответ от SHUMAHER NEWS:</b>
+def start_bot():
+    print("🤖 SHUMAHER NEWS Bot запущен!")
+    bot.infinity_polling()
 
-{reply_text}
-
-━━━━━━━━━━━━━━━━━━━━━
-
-📺 Канал: @shumaher_news
-💬 Чат: @shumaher_news_chat"""
-        
-        bot.send_message(user_id, text, parse_mode='HTML')
-        bot.send_message(ADMIN_CHAT_ID, f"✅ Ответ отправлен пользователю {user_id}")
-    except Exception as e:
-        bot.send_message(ADMIN_CHAT_ID, f"❌ Ошибка: {e}\n\nФормат: /reply USER_ID текст")
-
-# ================================
-# ЗАПУСК БОТА
-# ================================
 if __name__ == "__main__":
-    print("🤖 SHUMAHER NEWS Bot запущен...")
-    bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    start_bot()
