@@ -18,6 +18,9 @@ user_states = {}
 # ================================
 @bot.message_handler(commands=['start'])
 def start(message):
+    # Сбрасываем состояние
+    user_states[message.chat.id] = None
+    
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("📰 Подать новость"))
     markup.add(types.KeyboardButton("💼 Откликнуться на вакансию"))
@@ -40,22 +43,30 @@ def start(message):
     bot.send_message(message.chat.id, text, parse_mode='HTML', reply_markup=markup)
 
 # ================================
-# /reply для ответа (ИСПРАВЛЕННЫЙ)
+# /myid — узнать свой ID
+# ================================
+@bot.message_handler(commands=['myid'])
+def my_id(message):
+    bot.send_message(message.chat.id, f"Твой ID: <code>{message.chat.id}</code>", parse_mode='HTML')
+
+# ================================
+# /reply — ответить пользователю (ТОЛЬКО ДЛЯ АДМИНА)
 # ================================
 @bot.message_handler(commands=['reply'])
 def reply_to_user(message):
     # Проверяем что это админ
     if message.chat.id != ADMIN_CHAT_ID:
-        bot.send_message(message.chat.id, "⛔ У тебя нет доступа")
+        bot.send_message(message.chat.id, "⛔ Нет доступа")
         return
     
     try:
-        # Разбираем: /reply 123456789 текст
-        text = message.text
-        text = text.replace('/reply ', '', 1)
-        parts = text.split(' ', 1)
+        # Получаем текст после /reply
+        full_text = message.text
         
-        if len(parts) < 2:
+        # Убираем команду /reply
+        if full_text.startswith('/reply '):
+            full_text = full_text[7:]  # Убираем "/reply "
+        else:
             bot.send_message(ADMIN_CHAT_ID, 
                 "❌ Неверный формат!\n\n"
                 "Правильно:\n"
@@ -63,9 +74,27 @@ def reply_to_user(message):
                 parse_mode='HTML')
             return
         
-        user_id = int(parts[0])
-        reply_text = parts[1]
+        # Ищем первый пробел — разделяем ID и текст
+        space_index = full_text.find(' ')
         
+        if space_index == -1:
+            bot.send_message(ADMIN_CHAT_ID, 
+                "❌ Не указан текст ответа!\n\n"
+                "Правильно:\n"
+                "<code>/reply 123456789 Текст ответа</code>", 
+                parse_mode='HTML')
+            return
+        
+        user_id_str = full_text[:space_index]
+        reply_text = full_text[space_index + 1:]
+        
+        user_id = int(user_id_str)
+        
+        if not reply_text.strip():
+            bot.send_message(ADMIN_CHAT_ID, "❌ Текст ответа пустой!")
+            return
+        
+        # Отправляем ответ пользователю
         answer = f"""📬 <b>Ответ от SHUMAHER NEWS:</b>
 
 {reply_text}
@@ -76,10 +105,14 @@ def reply_to_user(message):
 💬 @shumaher_news_chat"""
         
         bot.send_message(user_id, answer, parse_mode='HTML')
-        bot.send_message(ADMIN_CHAT_ID, f"✅ Ответ отправлен!")
+        bot.send_message(ADMIN_CHAT_ID, f"✅ Ответ отправлен пользователю!")
         
     except ValueError:
-        bot.send_message(ADMIN_CHAT_ID, "❌ ID должен быть числом!")
+        bot.send_message(ADMIN_CHAT_ID, 
+            "❌ Неверный ID!\n\n"
+            "ID должен быть числом.\n"
+            "Пример: <code>/reply 123456789 Привет!</code>", 
+            parse_mode='HTML')
     except Exception as e:
         bot.send_message(ADMIN_CHAT_ID, f"❌ Ошибка: {e}")
 
@@ -169,10 +202,20 @@ def go_back(message):
     start(message)
 
 # ================================
-# Обработка сообщений
+# Обработка ВСЕХ остальных сообщений
 # ================================
-@bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'voice', 'video_note'])
+@bot.message_handler(func=lambda m: True, content_types=['text', 'photo', 'video', 'document', 'voice', 'video_note'])
 def handle_message(message):
+    # Пропускаем команды — они уже обработаны выше
+    if message.text and message.text.startswith('/'):
+        return
+    
+    # Для админа без состояния — не реагируем на обычные сообщения
+    if message.chat.id == ADMIN_CHAT_ID:
+        state = user_states.get(message.chat.id)
+        if state is None:
+            return  # Админ просто пишет что-то, игнорируем
+    
     state = user_states.get(message.chat.id)
     
     if state is None:
@@ -204,8 +247,8 @@ def handle_message(message):
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-<b>Чтобы ответить, скопируй:</b>
-<code>/reply {user.id} Твой ответ здесь</code>
+💬 <b>Ответить:</b>
+<code>/reply {user.id} Ваш текст</code>
 
 ━━━━━━━━━━━━━━━━━━━━━"""
     
@@ -231,6 +274,7 @@ def handle_message(message):
 # ================================
 def start_bot():
     print("🤖 SHUMAHER NEWS Bot запущен!")
+    print(f"ADMIN_CHAT_ID: {ADMIN_CHAT_ID}")
     bot.infinity_polling()
 
 if __name__ == "__main__":
